@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Clasificación de Números - Red Neuronal</title>
+  <link rel="stylesheet" href="estilos.css">
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
+
+  <link rel="stylesheet" href="estilos.css">
+  <style>
+    body {
+      background-color: #1a1a1a;
+      color: #e0b3ff;
+      font-family: 'Segoe UI', sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+
+    h2 {
+      color: #d99aff;
+    }
+
+    canvas {
+      border: 2px solid #d99aff;
+      background-color: black;
+      cursor: crosshair;
+      margin-bottom: 15px;
+    }
+
+    button {
+      background-color: #b366ff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background-color: #9933ff;
+    }
+
+    #resultado {
+      font-size: 20px;
+      margin-top: 20px;
+      color: #ffccff;
+    }
+  </style>
+
+</head>
+<body>
+  <div class="contenedor">
+    <h2>Dibuja un número del 0 al 9</h2>
+    <canvas id="canvas" width="280" height="280"></canvas><br>
+    <button onclick="predecir()">Predecir</button>
+    <button onclick="limpiarCanvas()">Limpiar</button>
+    <p id="resultado">Resultado: </p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 15;
+    ctx.lineCap = 'round';
+    let pintando = false;
+
+    canvas.addEventListener('mousedown', () => pintando = true);
+    canvas.addEventListener('mouseup', () => {
+      pintando = false;
+      ctx.beginPath();
+    });
+    canvas.addEventListener('mousemove', dibujar);
+
+    function dibujar(e) {
+      if (!pintando) return;
+      ctx.lineTo(e.offsetX, e.offsetY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(e.offsetX, e.offsetY);
+    }
+
+    function limpiarCanvas() {
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.beginPath();
+      document.getElementById('resultado').innerText = 'Resultado: ';
+    }
+
+    // Red neuronal simple
+    const modelo = tf.sequential();
+    modelo.add(tf.layers.flatten({inputShape: [28, 28]}));
+    modelo.add(tf.layers.dense({units: 128, activation: 'relu'}));
+    modelo.add(tf.layers.dense({units: 128, activation: 'relu'}));
+    modelo.add(tf.layers.dense({units: 10, activation: 'softmax'}));
+
+    modelo.compile({
+      optimizer: 'adam',
+      loss: 'sparseCategoricalCrossentropy',
+      metrics: ['accuracy']
+    });
+
+    // Cargar y normalizar el dataset MNIST
+    let datos_entrenamiento;
+    async function cargarDatos() {
+      const mnist = await tf.data.mnist();
+      const datos = mnist.train;
+      datos_entrenamiento = datos.map(({xs, ys}) => {
+        return {xs: xs.div(255), ys};
+      }).batch(32);
+    }
+
+    async function entrenarModelo() {
+      await cargarDatos();
+      await modelo.fitDataset(datos_entrenamiento, {
+        epochs: 5,
+        callbacks: {
+          onEpochEnd: (epoch, logs) => console.log(`Epoch ${epoch}: loss=${logs.loss}`)
+        }
+      });
+      console.log("Modelo entrenado");
+    }
+
+    async function predecir() {
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const input = tf.tidy(() => {
+        const img = tf.browser.fromPixels(imgData, 1).mean(2).toFloat();
+        const resized = tf.image.resizeBilinear(img.expandDims(-1), [28, 28]);
+        const normalizado = resized.div(255).reshape([1, 28, 28]);
+        return normalizado;
+      });
+      const prediccion = modelo.predict(input);
+      const clase = (await prediccion.argMax(1).data())[0];
+      document.getElementById('resultado').innerText = `Resultado: ${clase}`;
+    }
+
+    entrenarModelo();
+  </script>
+</body>
+</html>
