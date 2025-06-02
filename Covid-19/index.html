@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Clasificador de Rayos X - COVID-19</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 40px;
+    }
+    #preview {
+      max-width: 300px;
+      margin-top: 20px;
+    }
+    #result {
+      margin-top: 20px;
+      font-size: 1.2em;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Clasificador de Rayos X - COVID-19</h1>
+  <p>Sube una imagen de rayos X de tórax:</p>
+  
+  <input type="file" id="imageInput" accept="image/*" />
+  <br />
+  <img id="preview" src="#" alt="Vista previa" style="display: none;" />
+  
+  <div id="result"></div>
+
+  <script>
+    const input = document.getElementById('imageInput');
+    const preview = document.getElementById('preview');
+    const resultDiv = document.getElementById('result');
+
+    input.addEventListener('change', async () => {
+      const file = input.files[0];
+      if (!file) return;
+
+      // Mostrar vista previa
+      const reader = new FileReader();
+      reader.onload = () => {
+        preview.src = reader.result;
+        preview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+
+      // Enviar a la API
+      const formData = new FormData();
+      formData.append('file', file);
+
+      resultDiv.innerText = 'Procesando...';
+
+      try {
+        const response = await fetch('http://localhost:8000/predict', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+        resultDiv.innerText = `Predicción: ${data.prediction} (Confianza: ${data.confidence * 100}%)`;
+      } catch (error) {
+        resultDiv.innerText = 'Error al procesar la imagen.';
+        console.error(error);
+      }
+    });
+  </script>
+</body>
+</html>
